@@ -26,7 +26,7 @@ ylim([ymin ymax])
 plot([xmin, xmax], [bound_y, bound_y], 'k', 'LineWidth', 2)
 plot([xmin, -lot.W, -lot.W, 0, 0, xmax], [0, 0, -lot.L, -lot.L, 0, 0], 'k', 'LineWidth', 2)
 
-start = WayPoint(-2.0, 1.7, -0.2);
+start = WayPoint(-2.0, 1.7, -0.1);
 plot(start.X, start.Y, 'ro')
 goal = WayPoint(-0.5 * lot.W, -veh.LF, 0.5 * pi);
 plot(goal.X, goal.Y, 'ro')
@@ -128,7 +128,8 @@ plot([LIMIT_X(1, 1), LIMIT_X(2, 1), LIMIT_X(2, 1), LIMIT_X(1, 1), LIMIT_X(1, 1)]
 x = zeros(N, D);
 v = zeros(N, D);
 p_best = zeros(N, D); % 个体粒子最优位置
-g_best = zeros(1, D); % 群体例子最优位置
+% g_best = zeros(1, D); % 群体例子最优位置
+g_best = [goal.X - 0.5 * (goal.X - obst_left.X), 1.0, 0.5]; % TODO: calculate by vehicle parameters
 for n = 1 : N
     for d = 1 : D
         x(n, d) = LIMIT_X(1, d) + rand * (LIMIT_X(2, d) - LIMIT_X(1, d));
@@ -137,11 +138,12 @@ for n = 1 : N
     p_best(n, :) = x(n, :);
 end
 
-ref_best = [-2.3, 0.7, 0.5];
+gbest_fitness = KeyPoseFitness(start, goal, WayPoint(g_best(1), g_best(2), g_best(3)), obsts, bounds, veh, margin);
 for k = 1 : K
     c1 = 1.5 + sin(0.5 * pi * (1.0 - 2.0 * k / K));
     c2 = 1.5 + sin(0.5 * pi * (2.0 * k / K - 1.0));
     w = max_w - (max_w - min_w) * k / K;
+    last_gbest_fitness = gbest_fitness;
     for n = 1 : N
         % 更新速度(核心公式)
         temp_v = w * v(n, :) + c1 * rand * (p_best(n, :) - x(n, :)) + c2 * rand * (g_best - x(n, :));
@@ -156,15 +158,15 @@ for k = 1 : K
                 KeyPoseFitness(start, goal, WayPoint(p_best(n, 1), p_best(n, 2), p_best(n, 3)), obsts, bounds, veh, margin)
             p_best(n, :) = x(n, :);
         end
-        if KeyPoseFitness(start, goal, WayPoint(p_best(n, 1), p_best(n, 2), p_best(n, 3)), obsts, bounds, veh, margin) > ...
-                KeyPoseFitness(start, goal, WayPoint(g_best(1), g_best(2), g_best(3)), obsts, bounds, veh, margin)
+        pbest_fitness = KeyPoseFitness(start, goal, WayPoint(p_best(n, 1), p_best(n, 2), p_best(n, 3)), obsts, bounds, veh, margin);
+        if pbest_fitness > gbest_fitness              
             g_best(1, :) = p_best(n, :);
+            gbest_fitness = pbest_fitness;
         end
     end
-end
-if KeyPoseFitness(start, goal, WayPoint(g_best(1), g_best(2), g_best(3)), obsts, bounds, veh, margin) < ...
-        KeyPoseFitness(start, goal, WayPoint(ref_best(1), ref_best(2), ref_best(3)), obsts, bounds, veh, margin)
-    g_best(1, :) = ref_best(1, :);
+    if abs(gbest_fitness - last_gbest_fitness) < 0.01 && gbest_fitness > 0
+       break; 
+    end
 end
 key_pose = WayPoint(g_best(1), g_best(2), g_best(3))
 % key_pose = WayPoint(-2.3, 0.7, 0.5); % TODO: calculate by vehicle parameters
