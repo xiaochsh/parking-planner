@@ -4,7 +4,9 @@ veh.LF = 3.55;
 veh.LB = 0.9;
 veh.W = 1.98;
 veh.RMin = 5;
-veh.Color = 'c';
+veh.Color = '#C0C0C0';
+veh.LineWidth = 0.01;
+disc_dist = 0.1;
 margin = 0.3;
 
 MAX_TIMES = 1000;
@@ -26,7 +28,7 @@ ylim([ymin ymax])
 plot([xmin, xmax], [bound_y, bound_y], 'k', 'LineWidth', 2)
 plot([xmin, -lot.W, -lot.W, 0, 0, xmax], [0, 0, -lot.L, -lot.L, 0, 0], 'k', 'LineWidth', 2)
 
-start = WayPoint(-2.0, 1.7, -0.1);
+start = WayPoint(-5.0, 1.7, 0.1);
 plot(start.X, start.Y, 'ro')
 goal = WayPoint(-0.5 * lot.W, -veh.LF, 0.5 * pi);
 plot(goal.X, goal.Y, 'ro')
@@ -75,11 +77,12 @@ end_y = start.Y - r_goal * cos(start.Theta);
 if r_goal > max(max(r_min_dist, r_min_flc), veh.RMin) && r_goal < r_max_rlc && end_y >= goal.Y && times < MAX_TIMES && r_min_dist > 0
     kappa = -1.0 / r_goal;
     length = (goal.Theta - start.Theta) / kappa;
-    [x, y, theta] = WayPointsOnClothoid(start.X, start.Y, start.Theta, kappa, 0, length, uint16(abs(length) / 0.1), false);
+    [x, y, theta] = WayPointsOnClothoid(start.X, start.Y, start.Theta, kappa, 0, length, uint16(abs(length) / disc_dist), false);
     VehicleAnimation(x, y, theta, veh);
     plot(goal.X, end_y, 'ro')
-    [x, y, theta] = WayPointsOnClothoid(goal.X, end_y, goal.Theta, 0, 0, goal.Y - end_y, uint16((end_y - goal.Y) / 0.1), false);
-    VehicleAnimation(x, y, theta, veh);
+    [x, y, theta] = WayPointsOnClothoid(goal.X, end_y, goal.Theta, 0, 0, goal.Y - end_y, uint16((end_y - goal.Y) / disc_dist), false);
+    [vehx, vehy] = VehicleAnimation(x, y, theta, veh);
+    plot(vehx, vehy, 'k', 'LineWidth', 1.5)
     % fprintf("arc-line with arc-length (%.3f) kappa (%.3f) line-length (%.3f)\n", length, kappa, goal.Y - end_y)
     return;
 else
@@ -98,14 +101,15 @@ if status
     middle_flc_y = middle_pose.Y + veh.LF * sin(middle_pose.Theta + theta_fac) / cos(theta_fac);
 
     if bound_y - middle_flc_y > margin && min_side_dist > margin
-        [x, y, theta] = WayPointsOnClothoid(start.X, start.Y, start.Theta, kappa1, 0, length1, round(abs(length1) / 0.1), false);
+        [x, y, theta] = WayPointsOnClothoid(start.X, start.Y, start.Theta, kappa1, 0, length1, round(abs(length1) / disc_dist), false);
         VehicleAnimation(x, y, theta, veh);
         plot(middle_pose.X, middle_pose.Y, 'ro')
         [x, y, theta] = WayPointsOnClothoid(middle_pose.X, middle_pose.Y, middle_pose.Theta, kappa2, 0, length2, round(abs(length2) / 0.1), false);
         VehicleAnimation(x, y, theta, veh);
         plot(end_pose.X, end_pose.Y, 'ro')
-        [x, y, theta] = WayPointsOnClothoid(end_pose.X, end_pose.Y, end_pose.Theta, 0, 0, length3, round(abs(length3) / 0.1), false);
-        VehicleAnimation(x, y, theta, veh);
+        [x, y, theta] = WayPointsOnClothoid(end_pose.X, end_pose.Y, end_pose.Theta, 0, 0, length3, round(abs(length3) / disc_dist), false);
+        [vehx, vehy] = VehicleAnimation(x, y, theta, veh);
+        plot(vehx, vehy, 'k', 'LineWidth', 1.5)
         return;
     else
         fprintf("twice gear shift collision faild\n")
@@ -114,11 +118,12 @@ else
     fprintf("twice gear shift connection faild\n")
 end
 
+
 %% ======== more times gear shift (PSO) ============
 D = 3;
 K = 100;
 N = 10;
-LIMIT_X = [goal.X - min(0.5 * lot.W, 1.5), 0, 0.3; goal.X + min(0.5 * lot.W, 1.5), 3.0, 0.8];
+LIMIT_X = [goal.X - min(0.5 * lot.W, 1.5), 0, 0.5; goal.X, 2.0, 0.9];
 LIMIT_V = [-0.05, -0.05, -0.01; 0.05, 0.05, 0.01];
 c0 = 1.5;
 min_w = 1.2; max_w = 1.6;
@@ -129,7 +134,7 @@ x = zeros(N, D);
 v = zeros(N, D);
 p_best = zeros(N, D); % 个体粒子最优位置
 % g_best = zeros(1, D); % 群体例子最优位置
-g_best = [goal.X - 0.5 * (goal.X - obst_left.X), 1.0, 0.5]; % TODO: calculate by vehicle parameters
+g_best = [goal.X - 0.5 * (goal.X - obst_left.X), 1.0, 0.8]; % TODO: calculate by vehicle parameters
 for n = 1 : N
     for d = 1 : D
         x(n, d) = LIMIT_X(1, d) + rand * (LIMIT_X(2, d) - LIMIT_X(1, d));
@@ -173,23 +178,23 @@ key_pose = WayPoint(g_best(1), g_best(2), g_best(3))
 [status, length1, kappa1, length2, kappa2, length3, kappa3, length4, kappa4, length5] = ...
                         LineOrCircleCircleCircleCircleLine(start, goal, key_pose, veh);
 if status
-    [x, y, theta] = WayPointsOnClothoid(start.X, start.Y, start.Theta, kappa1, 0, length1, uint16(abs(length1) / 0.1), false);
+    [x, y, theta] = WayPointsOnClothoid(start.X, start.Y, start.Theta, kappa1, 0, length1, uint16(abs(length1) / disc_dist), false);
     VehicleAnimation(x, y, theta, veh);
     middle_pose1 = CalcStopPointByLength(start, kappa1, length1);
     plot(middle_pose1.X, middle_pose1.Y, 'ro')
-    [x, y, theta] = WayPointsOnClothoid(middle_pose1.X, middle_pose1.Y, middle_pose1.Theta, kappa2, 0, length2, uint16(abs(length2) / 0.1), false);
+    [x, y, theta] = WayPointsOnClothoid(middle_pose1.X, middle_pose1.Y, middle_pose1.Theta, kappa2, 0, length2, uint16(abs(length2) / disc_dist), false);
     VehicleAnimation(x, y, theta, veh);
     plot(key_pose.X, key_pose.Y, 'ro')
 
-    [x, y, theta] = WayPointsOnClothoid(key_pose.X, key_pose.Y, key_pose.Theta, kappa3, 0, length3, round(abs(length3) / 0.1), false);
+    [x, y, theta] = WayPointsOnClothoid(key_pose.X, key_pose.Y, key_pose.Theta, kappa3, 0, length3, round(abs(length3) / disc_dist), false);
     VehicleAnimation(x, y, theta, veh);
     middle_pose2 = CalcStopPointByLength(key_pose, kappa3, length3);
     plot(middle_pose2.X, middle_pose2.Y, 'ro')
-    [x, y, theta] = WayPointsOnClothoid(middle_pose2.X, middle_pose2.Y, middle_pose2.Theta, kappa4, 0, length4, round(abs(length4) / 0.1), false);
+    [x, y, theta] = WayPointsOnClothoid(middle_pose2.X, middle_pose2.Y, middle_pose2.Theta, kappa4, 0, length4, round(abs(length4) / disc_dist), false);
     VehicleAnimation(x, y, theta, veh);
     end_pose = CalcStopPointByLength(middle_pose2, kappa4, length4);
     plot(end_pose.X, end_pose.Y, 'ro')
-    [x, y, theta] = WayPointsOnClothoid(end_pose.X, end_pose.Y, end_pose.Theta, 0, 0, length5, round(abs(length5) / 0.1), false);
+    [x, y, theta] = WayPointsOnClothoid(end_pose.X, end_pose.Y, end_pose.Theta, 0, 0, length5, round(abs(length5) / disc_dist), false);
     [vehx, vehy] = VehicleAnimation(x, y, theta, veh);
     plot(vehx, vehy, 'k', 'LineWidth', 1.5)
 else
@@ -199,8 +204,8 @@ end
 function cost = KeyPoseFitness(start_pose, goal_pose, key_pose, obsts, bounds, veh, margin)
     obst_right = obsts(1); obst_left = obsts(2);
     bound_x = bounds(1); bound_y = bounds(2);
-    vrl_start = AxisLocalToGlobal(key_pose, WayPoint(-veh.LB, 0.5 * veh.W, key_pose.Theta));
-    vrr_start = AxisLocalToGlobal(key_pose, WayPoint(-veh.LB, -0.5 * veh.W, key_pose.Theta));
+    vrl_start = AxisLocalToGlobal(key_pose, WayPoint(-veh.LB, 0.5 * veh.W, 0.0));
+    vrr_start = AxisLocalToGlobal(key_pose, WayPoint(-veh.LB, -0.5 * veh.W, 0.0));
     if vrl_start.X > obst_left.X && vrl_start.Y < obst_left.Y
         if vrl_start.X - obst_left.X > margin
             cost = 0;
@@ -261,19 +266,27 @@ end
 
 function [status, length1, kappa1, length2, kappa2, length3, kappa3, length4, kappa4, length5] = ...
     LineOrCircleCircleCircleCircleLine(start_pose, goal_pose, key_pose, veh)
-    if start_pose.Theta < -0.01
-        [status1, length1, kappa1, length2, kappa2] = CircleCircle(start_pose, key_pose, veh);
-    else
-        [status1, length1, length2, kappa2] = LineCircle(start_pose, key_pose, veh);
-        kappa1 = 0;
-    end
-    if status1
-        [status2, length3, kappa3, length4, kappa4, length5] = CircleCircleLine(key_pose, goal_pose, veh);
-        if status2
-            status = true;
+
+    [ls, ll1, ll2, lk2] = LineCircle(start_pose, key_pose, veh);
+    if ls
+        [cs, cl1, ck1, cl2, ck2] = CircleCircle(start_pose, key_pose, veh);
+        if cs && abs(cl1) + abs(cl2) < abs(ll1) + abs(ll2)
+            length1 = cl1;
+            kappa1 = ck1;
+            length2 = cl2;
+            kappa2 = ck2;
         else
-            status = false;
+            length1 = ll1;
+            kappa1 = 0.0;
+            length2 = ll2;
+            kappa2 = lk2;
         end
+    else
+        [cs, length1, kappa1, length2, kappa2] = CircleCircle(start_pose, key_pose, veh);
+    end
+    
+    if ls || cs
+        [status, length3, kappa3, length4, kappa4, length5] = CircleCircleLine(key_pose, goal_pose, veh);
     else
         status = false;
         kappa3 = 0;
@@ -296,11 +309,11 @@ function [status, length1, kappa1, length2, kappa2, length3] = CircleCircleLine(
         gradP = [1.0 / veh.RMin, 1.0 / veh.RMin;
             cos(start_pose.Theta + theta1) + 2.0 * sin(theta2) * sin(start_pose.Theta + theta1 + 0.5 * theta2), ...
             -cos(start_pose.Theta + theta1 + theta2)];
-        L = L0 - gradP \ P;
         if isnan(rcond(gradP)) || rcond(gradP) < 1e-12
             times = MAX_TIMES;
             break;
         end
+        L = L0 - gradP \ P;
         times = times + 1;
     end
     
@@ -320,76 +333,5 @@ function [status, length1, kappa1, length2, kappa2, length3] = CircleCircleLine(
         kappa2 = 0;
         length2 = 0;
         length3 = 0;
-    end
-end
-
-function [status, length1, kappa1, length2, kappa2] = CircleCircle(start_pose, goal_pose, veh)
-    X = [2; -2; veh.RMin]; X0 = [0; 0; 0];
-    times = 1; MAX_TIMES = 1000;
-    while norm(X - X0) > 0.001 && times < MAX_TIMES
-        X0 = X;
-        theta1 = X0(1) / X0(3); theta2 = X0(2) / X0(3);
-        P = [theta1 - theta2 + start_pose.Theta - goal_pose.Theta;
-            start_pose.X - goal_pose.X + 2.0 * X0(3) * sin(0.5 * theta1) * cos(start_pose.Theta + 0.5 * theta1) + 2.0 * X0(3) * sin(0.5 * theta2) * cos(start_pose.Theta + theta1 - 0.5 * theta2);
-            start_pose.Y - goal_pose.Y + 2.0 * X0(3) * sin(0.5 * theta1) * sin(start_pose.Theta + 0.5 * theta1) + 2.0 * X0(3) * sin(0.5 * theta2) * sin(start_pose.Theta + theta1 - 0.5 * theta2)];
-        gradP = [1.0 / X0(3), -1.0 / X0(3), (X0(2) - X0(1)) / X0(3) ^ 2;
-            cos(start_pose.Theta + theta1) - 2.0 * sin(0.5 * theta2) * sin(start_pose.Theta + theta1 - 0.5 * theta2), cos(start_pose.Theta + theta1 - theta2), ...
-            2.0 * sin(0.5 * theta1) * cos(start_pose.Theta + 0.5 * theta1) + 2.0 * sin(0.5 * theta2) * cos(start_pose.Theta + theta1 - 0.5 * theta2) - theta1 * cos(start_pose.Theta + theta1) - theta2 * cos(start_pose.Theta + theta1 - theta2) + 2.0 * theta1 * sin(0.5 * theta2) * sin(start_pose.Theta + theta1 - 0.5 * theta2);
-            sin(start_pose.Theta + theta1) + 2.0 * sin(0.5 * theta2) * cos(start_pose.Theta + theta1 - 0.5 * theta2), sin(start_pose.Theta + theta1 - theta2), ...
-            2.0 * sin(0.5 * theta1) * sin(start_pose.Theta + 0.5 * theta1) + 2.0 * sin(0.5 * theta2) * sin(start_pose.Theta + theta1 - 0.5 * theta2) - theta1 * sin(start_pose.Theta + theta1) - theta2 * sin(start_pose.Theta + theta1 - theta2) - 2.0 * theta1 * sin(0.5 * theta2) * cos(start_pose.Theta + theta1 - 0.5 * theta2)];
-        X = X0 - gradP \ P;
-        if isnan(rcond(gradP)) || rcond(gradP) < 1e-12
-            times = MAX_TIMES;
-            break;
-        end
-        times = times + 1;
-    end
-
-    if times < MAX_TIMES
-        length1 = X(1);
-        kappa1 = 1.0 / X(3);
-        length2 = X(2);
-        kappa2 = -1.0 / X(3);
-
-        status = length1 > 0 && length2 < 0 && kappa1 > 0;
-    else
-        status = false;
-        kappa1 = 0;
-        length1 = 0;
-        kappa2 = 0;
-        length2 = 0;
-    end
-end
-
-function [status, length1, length2, kappa2] = LineCircle(start_pose, goal_pose, veh)
-    X = [2; 2; veh.RMin]; X0 = [0; 0; 0];
-    times = 1; MAX_TIMES = 1000;
-    while norm(X - X0) > 0.001 && times < MAX_TIMES
-        X0 = X;
-        theta2 = X0(2) / X0(3);
-        theta2_2 = 0.5 * theta2;
-        P = [theta2 + start_pose.Theta - goal_pose.Theta;
-            X0(1) * cos(start_pose.Theta) - 2.0 * X0(3) * sin(theta2_2) * cos(start_pose.Theta + theta2_2) + start_pose.X - goal_pose.X;
-            X0(1) * sin(start_pose.Theta) - 2.0 * X0(3) * sin(theta2_2) * sin(start_pose.Theta + theta2_2) + start_pose.Y - goal_pose.Y];
-        gradP = [0.0, 1.0 / X0(3), -X0(2) / X0(3) ^ 2;
-            cos(start_pose.Theta), -cos(start_pose.Theta + theta2), -2.0 * sin(theta2_2) * cos(start_pose.Theta + theta2_2) + theta2 * cos(start_pose.Theta + theta2);
-            sin(start_pose.Theta), -sin(start_pose.Theta + theta2), -2.0 * sin(theta2_2) * sin(start_pose.Theta + theta2_2) + theta2 * sin(start_pose.Theta + theta2)];
-        if isnan(rcond(gradP)) || rcond(gradP) < 1e-12
-            times = MAX_TIMES;
-            break;
-        end
-        X = X0 - gradP \ P;
-        times = times + 1;
-    end
-    if times < MAX_TIMES
-        length1 = X(1);
-        length2 = -X(2);
-        kappa2 = -1.0 / X(3);
-        status = length2 < 0 && kappa2 < 0;
-    else
-        status = false;
-        length1 = 0;
-        length2 = 0;
-        kappa2 = 0;
     end
 end

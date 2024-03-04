@@ -16,7 +16,7 @@ function [vehx, vehy] = VehicleAnimation(x, y, theta, veh, varargin)
         py = y(i);
         pth = theta(i);
         [vehx, vehy] = getVehTran([px, py, pth], veh);
-        plot(vehx, vehy, 'Color', veh.Color, 'LineWidth', 0.1); % ³µÁ¾±ß¿ò
+        plot(vehx, vehy, 'Color', veh.Color, 'LineWidth', veh.LineWidth); % ³µÁ¾±ß¿ò
         pause(0.02)
         if record
             img = getframe(gcf);
